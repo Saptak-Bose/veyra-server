@@ -1,0 +1,5 @@
+{
+  "watch": ["server.ts", ".env"],
+  "ext": "ts,json",
+  "exec": "bun server.ts"
+}
