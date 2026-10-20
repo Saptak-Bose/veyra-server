@@ -8,7 +8,7 @@ import { handleClerkWebhook } from "./controllers/webhook-controller";
 
 const app = express();
 
-initDB();
+await initDB();
 
 const allowedOrigins = (process.env.ORIGINS as string).split(",");
 
