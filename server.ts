@@ -2,8 +2,14 @@ import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
+import { initDB } from "./config/db";
+import { clerkMiddleware } from "@clerk/express";
+import { handleClerkWebhook } from "./controllers/webhook-controller";
 
 const app = express();
+
+initDB();
+
 const allowedOrigins = (process.env.ORIGINS as string).split(",");
 
 app.use(
@@ -14,7 +20,17 @@ app.use(
 );
 
 app.use(cookieParser());
+
+app.use(
+  "/api/clerk",
+  express.raw({
+    type: "application/json",
+  }),
+  handleClerkWebhook,
+);
+
 app.use(express.json());
+app.use(clerkMiddleware());
 
 app.get("/", (req, res) => res.send("API is live!"));
 
