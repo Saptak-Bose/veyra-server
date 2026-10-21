@@ -4,7 +4,8 @@ import cors from "cors";
 import cookieParser from "cookie-parser";
 import { initDB } from "./config/db";
 import { clerkMiddleware } from "@clerk/express";
-import { handleClerkWebhook } from "./controllers/webhook-controller";
+import { handleClerkWebhook } from "./controllers/webhook";
+import { meetingRouter } from "./routes/meeting-routes";
 
 const app = express();
 
@@ -33,6 +34,7 @@ app.use(express.json());
 app.use(clerkMiddleware());
 
 app.get("/", (req, res) => res.send("API is live!"));
+app.use("/api/meetings", meetingRouter)
 
 const port = process.env.PORT ?? 3001;
 
