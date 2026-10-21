@@ -229,6 +229,7 @@ export const getUserSessions = async (req: Request, res: Response) => {
 export const getSessionDetails = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    const userId = req.user?.id;
 
     const meetings = await sql`
         SELECT m.*,
@@ -247,6 +248,21 @@ export const getSessionDetails = async (req: Request, res: Response) => {
       });
 
     const m = meetings[0];
+
+    if (m?.host_id !== userId) {
+      const membership = await sql`
+          SELECT 1
+          FROM meeting_participants
+          WHERE meeting_id = ${m?.id}
+          AND user_id = ${userId}
+          LIMIT 1
+        `;
+
+      if (membership.length === 0)
+        return res.status(404).json({
+          error: "Session details not found.",
+        });
+    }
 
     const participants = await sql`
         SELECT mp.*, u.email

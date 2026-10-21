@@ -5,7 +5,7 @@ import cookieParser from "cookie-parser";
 import { initDB } from "./config/db";
 import { clerkMiddleware } from "@clerk/express";
 import { handleClerkWebhook } from "./controllers/webhook";
-import { meetingRouter } from "./routes/meeting-routes";
+import { meetingRouter } from "./routes/meeting";
 
 const app = express();
 
