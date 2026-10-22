@@ -40,7 +40,7 @@ app.use(
 
 app.use(express.json());
 app.use(clerkMiddleware());
-app.get("/", (req, res) => res.send("API is live!"));
+app.get("/", (_req, res) => res.send("API is live!"));
 app.use("/api/meetings", meetingRouter);
 
 const io = new Server(server, {

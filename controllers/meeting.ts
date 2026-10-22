@@ -1,4 +1,5 @@
 import type { Request, Response } from "express";
+import { getAuth } from "@clerk/express";
 import { sql } from "../config/db";
 
 export const generateMeetingId = () => {
@@ -104,7 +105,7 @@ export const getMeeting = async (req: Request, res: Response) => {
         SELECT m.*,
         u.id as host_user_id,
         u.name as host_name,
-        u.email as host_email,
+        u.email as host_email
         FROM meetings m
         JOIN users u 
         ON m.host_id = u.id 
@@ -166,7 +167,7 @@ export const getUserSessions = async (req: Request, res: Response) => {
     const formattedMeetings = await Promise.all(
       meetings.map(async (m) => {
         const participants = await sql`
-            SELECT mp.*, u.email
+            SELECT mp.*, u.name AS user_name, u.email
             FROM meeting_participants mp
             LEFT JOIN users u
             ON mp.user_id = u.id
@@ -196,16 +197,22 @@ export const getUserSessions = async (req: Request, res: Response) => {
             user: p.user_id
               ? {
                   id: p.user_id,
-                  email: p.email,
+                  email:
+                    p.email && !p.email.endsWith("@clerk.local")
+                      ? p.email
+                      : null,
                 }
               : null,
-            name: p.name,
+            name:
+              p.user_name && p.user_name !== "User"
+                ? p.user_name
+                : (p.name ?? p.user_name ?? "User"),
             joinedAt: p.joined_at,
             leftAt: p.left_at,
           })),
           messages: messages.map((msg) => ({
             id: msg.id,
-            sender: msg.sender_id,
+            senderId: msg.sender_id,
             senderName: msg.sender_name,
             text: msg.text,
             timestamp: msg.timestamp,
@@ -239,7 +246,7 @@ export const getSessionDetails = async (req: Request, res: Response) => {
         FROM meetings m
         JOIN users u
         ON m.host_id = u.id
-        WHERE m.meeting_id = ${id}
+        WHERE m.id = ${id}
       `;
 
     if (meetings.length === 0)
@@ -265,7 +272,7 @@ export const getSessionDetails = async (req: Request, res: Response) => {
     }
 
     const participants = await sql`
-        SELECT mp.*, u.email
+        SELECT mp.*, u.name AS user_name, u.email
         FROM meeting_participants mp
         LEFT JOIN users u
         ON mp.user_id = u.id
@@ -295,16 +302,22 @@ export const getSessionDetails = async (req: Request, res: Response) => {
         user: p.user_id
           ? {
               id: p.user_id,
-              email: p.email,
+              email:
+                p.email && !p.email.endsWith("@clerk.local")
+                  ? p.email
+                  : null,
             }
           : null,
-        name: p.name,
+        name:
+          p.user_name && p.user_name !== "User"
+            ? p.user_name
+            : (p.name ?? p.user_name ?? "User"),
         joinedAt: p.joined_at,
         leftAt: p.left_at,
       })),
       messages: messages.map((msg) => ({
         id: msg.id,
-        sender: msg.sender_id,
+        senderId: msg.sender_id,
         senderName: msg.sender_name,
         text: msg.text,
         timestamp: msg.timestamp,
@@ -326,30 +339,30 @@ export const getSessionDetails = async (req: Request, res: Response) => {
 export const getMeetingStats = async (req: Request, res: Response) => {
   try {
     const userId = req.user?.id;
+    const auth = getAuth(req);
+    const activePlan = auth.has({ plan: "studio" }) ? "studio" : "essential";
 
-    const users = await sql`
-        SELECT plan
-        FROM users
-        WHERE id = ${userId}
-      `;
-
-    const plan = users[0]?.plan ?? "essential";
+    await sql`
+      UPDATE users
+      SET plan = ${activePlan}
+      WHERE id = ${userId}
+    `;
 
     const monthlyCountResult = await sql`
         SELECT COUNT(*) AS count
         FROM meetings
         WHERE host_id = ${userId}
-        AND created_at >= date_trunc("month", NOW())
+        AND created_at >= date_trunc('month', NOW())
       `;
 
     const monthlyCount = parseInt(monthlyCountResult[0]?.count ?? "0", 10);
-    const monthlyLimit = plan === "studio" ? null : 30;
+    const monthlyLimit = activePlan === "studio" ? null : 30;
 
     return res.status(200).json({
-      plan,
+      plan: activePlan,
       monthlyCount,
       monthlyLimit,
-      maxParticipants: plan === "studio" ? 100 : 10,
+      maxParticipants: activePlan === "studio" ? 100 : 10,
     });
   } catch (error) {
     console.error("Error while fetching meeting stats", error);

@@ -10,6 +10,7 @@ export type MeetingParticipantUser = {
 export type MeetingUser = {
   id: string;
   name: string | null;
+  email?: string | null;
 };
 
 export type ChatMessage = {
@@ -17,5 +18,5 @@ export type ChatMessage = {
   senderId: string;
   senderName: string;
   text: string;
-  time: string;
+  timestamp: string;
 };

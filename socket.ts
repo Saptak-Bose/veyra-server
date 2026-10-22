@@ -1,7 +1,6 @@
 import type { DefaultEventsMap, Server } from "socket.io";
 import { sql } from "./config/db";
 import type { ChatMessage, MeetingParticipantUser, MeetingUser } from "./types";
-import type { User } from "@clerk/express";
 
 const rooms = new Map();
 
@@ -94,19 +93,45 @@ export const setupSocketIO = (
           roomParticipants.set(socket.id, currentUser);
           const userId = user?.id ?? null;
 
+          if (userId && user.email) {
+            await sql`
+              UPDATE users
+              SET name = ${currentUser.userName},
+                  email = CASE
+                    WHEN NOT EXISTS (
+                      SELECT 1
+                      FROM users AS email_owner
+                      WHERE email_owner.email = ${user.email}
+                        AND email_owner.id <> ${userId}
+                    )
+                    THEN ${user.email}
+                    ELSE users.email
+                  END,
+                  updated_at = NOW()
+              WHERE id = ${userId}
+            `;
+          }
+
           const existingParticipants = await sql`
-              SELECT id 
+              SELECT id
               FROM meeting_participants
               WHERE meeting_id = ${meeting?.id}
               AND ((${userId}::text IS NOT NULL 
               AND user_id = ${userId})
-              OR name = ${currentUser.userName})
+              OR (user_id IS NULL AND name = 'User'))
             `;
 
           if (existingParticipants.length === 0) {
             await sql`
                 INSERT INTO meeting_participants (meeting_id, user_id, name, joined_at)
                 VALUES (${meeting?.id}, ${userId}, ${currentUser.userName}, NOW())
+              `;
+          } else if (userId) {
+            await sql`
+                UPDATE meeting_participants
+                SET user_id = ${userId},
+                    name = ${currentUser.userName}
+                WHERE id = ${existingParticipants[0]?.id}
               `;
           }
 
@@ -238,17 +263,16 @@ export const setupSocketIO = (
     );
 
     socket.on("end-meeting", async ({ roomId }: { roomId: string }) => {
+      io.to(roomId).emit("meeting-ended", {
+        message: "The meeting has been ended by the host.",
+      });
+
       try {
         await sql`
             UPDATE meetings
-            SET status = "ended", ended_at = NOW()
+            SET status = 'ended', ended_at = NOW()
             WHERE meeting_id = ${roomId}
           `;
-
-        io.to(roomId).emit("meeting-ended", {
-          message: "The meeting has been ended by the host.",
-        });
-
         rooms.delete(roomId);
       } catch (error) {
         console.error("Error ending meeting: ", error);
